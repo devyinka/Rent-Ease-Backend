@@ -8,14 +8,7 @@ import type {
   AcceptTenantInvitationInput,
   CreateTenantInvitationInput,
 } from "../types/tenantInvitation.type.js";
-
-function generateInvitationToken(): string {
-  return crypto.randomBytes(32).toString("hex");
-}
-
-function hashInvitationToken(token: string): string {
-  return crypto.createHash("sha256").update(token).digest("hex");
-}
+import { generateToken, hashToken } from "../lib/crypo.js";
 
 function calculateInvitationExpiry(): Date {
   const expiresAt = new Date();
@@ -90,8 +83,8 @@ export const tenantInvitationService = {
         .where(eq(tenantInvitations.id, existingInvitation.id));
     }
 
-    const token = generateInvitationToken();
-    const tokenHash = hashInvitationToken(token);
+    const token = generateToken();
+    const tokenHash = hashToken(token as string);
 
     const [invitation] = await db
       .insert(tenantInvitations)
@@ -116,7 +109,7 @@ export const tenantInvitationService = {
   },
 
   getInvitationByToken: async (token: string) => {
-    const tokenHash = hashInvitationToken(token);
+    const tokenHash = hashToken(token);
 
     const invitation = await db.query.tenantInvitations.findFirst({
       where: eq(tenantInvitations.tokenHash, tokenHash),

@@ -5,9 +5,12 @@ import { db } from "../db/index.js";
 import {
   authSessions,
   tenantInvitations,
+  agentInvitations,
   tenants,
   users,
   landlords,
+  agents,
+  landlordAgents,
 } from "../db/schema.js";
 
 import { hashPassword, verifyPassword } from "./password.js";
@@ -120,9 +123,14 @@ export const authService = {
       }
     }
 
-    if (input.invitationToken && input.role !== "TENANT") {
+    // INVITATION TOKEN VALIDATION
+    if (
+      input.invitationToken &&
+      input.role !== "TENANT" &&
+      input.role !== "AGENT"
+    ) {
       throw new AppError(
-        "Invitation token can only be used when registering as a tenant",
+        "Invitation token can only be used when registering as a tenant or agent",
         400,
       );
     }
@@ -130,49 +138,106 @@ export const authService = {
     const passwordHash = await hashPassword(input.password);
 
     const user = await db.transaction(async (transaction) => {
-      let invitation = null;
+      let tenantInvitation = null;
+      let agentInvitation = null;
 
+      // TENANT OR AGENT INVITATION VALIDATION
       if (input.invitationToken) {
         const tokenHash = hashToken(input.invitationToken);
 
-        invitation = await transaction.query.tenantInvitations.findFirst({
-          where: eq(tenantInvitations.tokenHash, tokenHash),
-        });
+        // TENANT INVITATION
+        if (input.role === "TENANT") {
+          tenantInvitation =
+            await transaction.query.tenantInvitations.findFirst({
+              where: eq(tenantInvitations.tokenHash, tokenHash),
+            });
 
-        if (!invitation) {
-          throw new AppError("Invalid invitation token", 400);
+          if (!tenantInvitation) {
+            throw new AppError("Invalid tenant invitation token", 400);
+          }
+
+          if (tenantInvitation.status !== "PENDING") {
+            throw new AppError(
+              "This tenant invitation is no longer available",
+              400,
+            );
+          }
+
+          if (tenantInvitation.expiresAt <= new Date()) {
+            await transaction
+              .update(tenantInvitations)
+              .set({
+                status: "EXPIRED",
+                updatedAt: new Date(),
+              })
+              .where(eq(tenantInvitations.id, tenantInvitation.id));
+
+            throw new AppError("This tenant invitation has expired", 400);
+          }
+
+          const emailMatches =
+            tenantInvitation.email &&
+            email &&
+            tenantInvitation.email.toLowerCase() === email;
+
+          const phoneMatches =
+            tenantInvitation.phone && phone && tenantInvitation.phone === phone;
+
+          if (!emailMatches && !phoneMatches) {
+            throw new AppError(
+              "Your email or phone does not match the invitation",
+              403,
+            );
+          }
         }
 
-        if (invitation.status !== "PENDING") {
-          throw new AppError("This invitation is no longer available", 400);
-        }
+        // AGENT INVITATION
+        if (input.role === "AGENT") {
+          agentInvitation = await transaction.query.agentInvitations.findFirst({
+            where: eq(agentInvitations.tokenHash, tokenHash),
+          });
 
-        if (invitation.expiresAt < new Date()) {
-          await transaction
-            .update(tenantInvitations)
-            .set({
-              status: "EXPIRED",
-              updatedAt: new Date(),
-            })
-            .where(eq(tenantInvitations.id, invitation.id));
+          if (!agentInvitation) {
+            throw new AppError("Invalid agent invitation token", 400);
+          }
 
-          throw new AppError("This invitation has expired", 400);
-        }
+          if (agentInvitation.status !== "PENDING") {
+            throw new AppError(
+              "This agent invitation is no longer available",
+              400,
+            );
+          }
 
-        const emailMatches =
-          invitation.email && email && invitation.email.toLowerCase() === email;
+          if (agentInvitation.expiresAt <= new Date()) {
+            await transaction
+              .update(agentInvitations)
+              .set({
+                status: "EXPIRED",
+                updatedAt: new Date(),
+              })
+              .where(eq(agentInvitations.id, agentInvitation.id));
 
-        const phoneMatches =
-          invitation.phone && phone && invitation.phone === phone;
+            throw new AppError("This agent invitation has expired", 400);
+          }
 
-        if (!emailMatches && !phoneMatches) {
-          throw new AppError(
-            "Your email or phone does not match the invitation",
-            403,
-          );
+          const emailMatches =
+            agentInvitation.email &&
+            email &&
+            agentInvitation.email.toLowerCase() === email;
+
+          const phoneMatches =
+            agentInvitation.phone && phone && agentInvitation.phone === phone;
+
+          if (!emailMatches && !phoneMatches) {
+            throw new AppError(
+              "Your email or phone does not match the invitation",
+              403,
+            );
+          }
         }
       }
 
+      // CREATE USER
       const [createdUser] = await transaction
         .insert(users)
         .values({
@@ -190,6 +255,7 @@ export const authService = {
         throw new AppError("Failed to create user", 500);
       }
 
+      // LANDLORD PROFILE
       if (input.role === "LANDLORD") {
         const [landlord] = await transaction
           .insert(landlords)
@@ -203,6 +269,25 @@ export const authService = {
         }
       }
 
+      // AGENT PROFILE
+      let createdAgent = null;
+
+      if (input.role === "AGENT") {
+        const [agent] = await transaction
+          .insert(agents)
+          .values({
+            userId: createdUser.id,
+          })
+          .returning();
+
+        if (!agent) {
+          throw new AppError("Failed to create agent profile", 500);
+        }
+
+        createdAgent = agent;
+      }
+
+      // TENANT PROFILE
       if (input.role === "TENANT") {
         const [tenant] = await transaction
           .insert(tenants)
@@ -216,20 +301,77 @@ export const authService = {
         }
       }
 
-      if (invitation) {
-        await transaction
+      // ACCEPT TENANT INVITATION
+      if (tenantInvitation) {
+        const [acceptedInvitation] = await transaction
           .update(tenantInvitations)
           .set({
             status: "ACCEPTED",
             acceptedAt: new Date(),
             updatedAt: new Date(),
           })
-          .where(eq(tenantInvitations.id, invitation.id));
+          .where(
+            and(
+              eq(tenantInvitations.id, tenantInvitation.id),
+              eq(tenantInvitations.status, "PENDING"),
+            ),
+          )
+          .returning();
+
+        if (!acceptedInvitation) {
+          throw new AppError("Tenant invitation is no longer available", 409);
+        }
+      }
+
+      // ACCEPT AGENT INVITATION
+      if (agentInvitation) {
+        if (!createdAgent) {
+          throw new AppError("Agent profile was not created", 500);
+        }
+
+        // CREATE THE ACTUAL LANDLORD-AGENT RELATIONSHIP
+        const [relationship] = await transaction
+          .insert(landlordAgents)
+          .values({
+            landlordId: agentInvitation.landlordId,
+            agentId: createdAgent.id,
+            status: "ACTIVE",
+            acceptedAt: new Date(),
+          })
+          .returning();
+
+        if (!relationship) {
+          throw new AppError(
+            "Failed to create landlord-agent relationship",
+            500,
+          );
+        }
+
+        // MARK THE INVITATION AS ACCEPTED
+        const [acceptedInvitation] = await transaction
+          .update(agentInvitations)
+          .set({
+            status: "ACCEPTED",
+            acceptedAt: new Date(),
+            updatedAt: new Date(),
+          })
+          .where(
+            and(
+              eq(agentInvitations.id, agentInvitation.id),
+              eq(agentInvitations.status, "PENDING"),
+            ),
+          )
+          .returning();
+
+        if (!acceptedInvitation) {
+          throw new AppError("Agent invitation is no longer available", 409);
+        }
       }
 
       return createdUser;
     });
 
+    // CREATE AUTH SESSION
     const tokens = await authService.createSession(user);
 
     return {

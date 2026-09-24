@@ -16,6 +16,8 @@ import unitRoutes from "./routes/unit.route.js";
 import tenantRoutes from "./routes/tenant.route.js";
 import tenancyRoutes from "./routes/tenancy.route.js";
 import tenantInvitation from "./routes/tenantInvitation.route.js";
+import agentRoute from "./routes/agent.route.js";
+import agentInvitationRoute from "./routes/agentInvitation.route.js";
 
 const app = express();
 
@@ -123,6 +125,9 @@ app.use("/", unitRoutes);
 app.use("/", tenantRoutes);
 app.use("/", tenancyRoutes);
 app.use("/", tenantInvitation);
+app.use("/", agentRoute);
+app.use("/", agentInvitationRoute);
+
 app.use(
   (
     err: Error,

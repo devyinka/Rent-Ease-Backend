@@ -8,6 +8,34 @@
       "when": 1789834166688,
       "tag": "0000_petite_mimic",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1790117626697,
+      "tag": "0001_mysterious_karnak",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1790126235820,
+      "tag": "0002_unique_sabra",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1790204000978,
+      "tag": "0003_superb_toro",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1790234373090,
+      "tag": "0004_soft_franklin_storm",
+      "breakpoints": true
     }
   ]
 }
