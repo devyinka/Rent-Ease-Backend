@@ -23,39 +23,11 @@ import {
 
 import type { LoginInput, RegisterInput } from "./auth.type.js";
 
-import crypto from "node:crypto";
-
 import { env } from "../config/env.js";
 
 import { AppError } from "../errors/appError.js";
-
-function hashToken(token: string): string {
-  return crypto.createHash("sha256").update(token).digest("hex");
-}
-
-function generateSessionId(): string {
-  return crypto.randomUUID();
-}
-
-function calculateExpiryDate(duration: string): Date {
-  const match = duration.match(/^(\d+)([smhd])$/);
-
-  if (!match) {
-    throw new Error("Invalid token expiry format");
-  }
-
-  const amount = Number(match[1]);
-  const unit = match[2];
-
-  const multipliers: Record<string, number> = {
-    s: 1000,
-    m: 60 * 1000,
-    h: 60 * 60 * 1000,
-    d: 24 * 60 * 60 * 1000,
-  };
-
-  return new Date(Date.now() + amount * multipliers[unit]);
-}
+import { calculateExpiryDate } from "../lib/helper.js";
+import { generateSessionId, hashToken } from "../lib/crypo.js";
 
 function sanitizeUser(user: typeof users.$inferSelect) {
   return {

@@ -7,3 +7,7 @@ export const hashToken = (token: string) => {
 export const generateToken = () => {
   return crypto.randomBytes(32).toString("hex");
 };
+
+export const generateSessionId = (): string => {
+  return crypto.randomUUID();
+};

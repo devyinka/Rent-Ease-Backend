@@ -48,7 +48,7 @@ export const propertyController = {
 
     const property = await propertyService.getPropertyById(
       req.user.id,
-      req.params.programId as string,
+      req.params.propertyId as string,
     );
 
     return res.status(200).json({
@@ -67,7 +67,7 @@ export const propertyController = {
 
     const property = await propertyService.updateProperty(
       req.user.id,
-      req.params.programId as string,
+      req.params.propertyId as string,
       req.body,
     );
 
@@ -87,7 +87,7 @@ export const propertyController = {
 
     const property = await propertyService.deleteProperty(
       req.user.id,
-      req.params.programId as string,
+      req.params.propertyId as string,
     );
 
     return res.status(200).json({

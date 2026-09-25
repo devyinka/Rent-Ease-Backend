@@ -91,12 +91,8 @@
           "name": "agent_compensations_agent_property_id_agent_properties_id_fk",
           "tableFrom": "agent_compensations",
           "tableTo": "agent_properties",
-          "columnsFrom": [
-            "agent_property_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["agent_property_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "cascade"
         }
@@ -280,12 +276,8 @@
           "name": "agent_invitations_landlord_id_landlords_id_fk",
           "tableFrom": "agent_invitations",
           "tableTo": "landlords",
-          "columnsFrom": [
-            "landlord_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["landlord_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "cascade"
         }
@@ -410,12 +402,8 @@
           "name": "agent_properties_landlord_agent_id_landlord_agents_id_fk",
           "tableFrom": "agent_properties",
           "tableTo": "landlord_agents",
-          "columnsFrom": [
-            "landlord_agent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["landlord_agent_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "cascade"
         },
@@ -423,12 +411,8 @@
           "name": "agent_properties_property_id_properties_id_fk",
           "tableFrom": "agent_properties",
           "tableTo": "properties",
-          "columnsFrom": [
-            "property_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["property_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "cascade"
         }
@@ -526,12 +510,8 @@
           "name": "agent_property_permissions_agent_property_id_agent_properties_id_fk",
           "tableFrom": "agent_property_permissions",
           "tableTo": "agent_properties",
-          "columnsFrom": [
-            "agent_property_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["agent_property_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "cascade"
         }
@@ -596,12 +576,8 @@
           "name": "agents_user_id_users_id_fk",
           "tableFrom": "agents",
           "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "cascade"
         }
@@ -706,12 +682,8 @@
           "name": "auth_sessions_user_id_users_id_fk",
           "tableFrom": "auth_sessions",
           "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "cascade"
         }
@@ -853,12 +825,8 @@
           "name": "landlord_agents_landlord_id_landlords_id_fk",
           "tableFrom": "landlord_agents",
           "tableTo": "landlords",
-          "columnsFrom": [
-            "landlord_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["landlord_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "cascade"
         },
@@ -866,12 +834,8 @@
           "name": "landlord_agents_agent_id_agents_id_fk",
           "tableFrom": "landlord_agents",
           "tableTo": "agents",
-          "columnsFrom": [
-            "agent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["agent_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "cascade"
         }
@@ -936,12 +900,8 @@
           "name": "landlords_user_id_users_id_fk",
           "tableFrom": "landlords",
           "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "cascade"
         }
@@ -1033,12 +993,8 @@
           "name": "properties_landlord_id_landlords_id_fk",
           "tableFrom": "properties",
           "tableTo": "landlords",
-          "columnsFrom": [
-            "landlord_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["landlord_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "cascade"
         }
@@ -1182,12 +1138,8 @@
           "name": "tenancies_tenant_id_tenants_id_fk",
           "tableFrom": "tenancies",
           "tableTo": "tenants",
-          "columnsFrom": [
-            "tenant_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["tenant_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "cascade"
         },
@@ -1195,12 +1147,8 @@
           "name": "tenancies_unit_id_units_id_fk",
           "tableFrom": "tenancies",
           "tableTo": "units",
-          "columnsFrom": [
-            "unit_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["unit_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "cascade"
         }
@@ -1342,12 +1290,8 @@
           "name": "tenant_invitations_landlord_id_landlords_id_fk",
           "tableFrom": "tenant_invitations",
           "tableTo": "landlords",
-          "columnsFrom": [
-            "landlord_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["landlord_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "cascade"
         }
@@ -1417,12 +1361,8 @@
           "name": "tenants_user_id_users_id_fk",
           "tableFrom": "tenants",
           "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "cascade"
         }
@@ -1559,12 +1499,8 @@
           "name": "units_property_id_properties_id_fk",
           "tableFrom": "units",
           "tableTo": "properties",
-          "columnsFrom": [
-            "property_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["property_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "cascade"
         }
@@ -1724,29 +1660,17 @@
     "public.agent_compensation_type": {
       "name": "agent_compensation_type",
       "schema": "public",
-      "values": [
-        "FIXED",
-        "PERCENTAGE"
-      ]
+      "values": ["FIXED", "PERCENTAGE"]
     },
     "public.agent_fee_type": {
       "name": "agent_fee_type",
       "schema": "public",
-      "values": [
-        "FIXED",
-        "PERCENTAGE"
-      ]
+      "values": ["FIXED", "PERCENTAGE"]
     },
     "public.agent_invitation_status": {
       "name": "agent_invitation_status",
       "schema": "public",
-      "values": [
-        "PENDING",
-        "ACCEPTED",
-        "DECLINED",
-        "EXPIRED",
-        "CANCELLED"
-      ]
+      "values": ["PENDING", "ACCEPTED", "DECLINED", "EXPIRED", "CANCELLED"]
     },
     "public.agent_permission": {
       "name": "agent_permission",
@@ -1769,51 +1693,27 @@
     "public.agent_relationship_status": {
       "name": "agent_relationship_status",
       "schema": "public",
-      "values": [
-        "ACTIVE",
-        "REVOKED"
-      ]
+      "values": ["ACTIVE", "REVOKED"]
     },
     "public.auth_session_status": {
       "name": "auth_session_status",
       "schema": "public",
-      "values": [
-        "ACTIVE",
-        "REVOKED",
-        "EXPIRED"
-      ]
+      "values": ["ACTIVE", "REVOKED", "EXPIRED"]
     },
     "public.rent_frequency": {
       "name": "rent_frequency",
       "schema": "public",
-      "values": [
-        "MONTHLY",
-        "QUARTERLY",
-        "BI_ANNUAL",
-        "ANNUAL",
-        "CUSTOM"
-      ]
+      "values": ["MONTHLY", "QUARTERLY", "BI_ANNUAL", "ANNUAL", "CUSTOM"]
     },
     "public.tenancy_status": {
       "name": "tenancy_status",
       "schema": "public",
-      "values": [
-        "PENDING",
-        "ACTIVE",
-        "ENDED",
-        "TERMINATED",
-        "CANCELLED"
-      ]
+      "values": ["PENDING", "ACTIVE", "ENDED", "TERMINATED", "CANCELLED"]
     },
     "public.tenant_invitation_status": {
       "name": "tenant_invitation_status",
       "schema": "public",
-      "values": [
-        "PENDING",
-        "ACCEPTED",
-        "EXPIRED",
-        "CANCELLED"
-      ]
+      "values": ["PENDING", "ACCEPTED", "EXPIRED", "CANCELLED"]
     },
     "public.unit_type": {
       "name": "unit_type",
@@ -1831,22 +1731,12 @@
     "public.user_role": {
       "name": "user_role",
       "schema": "public",
-      "values": [
-        "LANDLORD",
-        "AGENT",
-        "TENANT",
-        "TECHNICIAN"
-      ]
+      "values": ["LANDLORD", "AGENT", "TENANT", "TECHNICIAN"]
     },
     "public.user_status": {
       "name": "user_status",
       "schema": "public",
-      "values": [
-        "ACTIVE",
-        "INVITED",
-        "SUSPENDED",
-        "DEACTIVATED"
-      ]
+      "values": ["ACTIVE", "INVITED", "SUSPENDED", "DEACTIVATED"]
     }
   },
   "schemas": {},

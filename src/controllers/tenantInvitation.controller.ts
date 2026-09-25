@@ -37,6 +37,19 @@ export const tenantInvitationController = {
     });
   },
 
+  getInvitationByToken: async (req: Request, res: Response) => {
+    const { token } = req.params;
+
+    const invitation = await tenantInvitationService.getInvitationByToken(
+      token as string,
+    );
+
+    return res.status(200).json({
+      success: true,
+      data: invitation,
+    });
+  },
+
   cancel: async (req: Request, res: Response) => {
     const result = await tenantInvitationService.cancelInvitation(
       req.user!.id,
