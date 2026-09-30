@@ -15,6 +15,13 @@
       "when": 1790771198402,
       "tag": "0001_fancy_living_mummy",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1790782800000,
+      "tag": "0002_technician_work_orders",
+      "breakpoints": true
     }
   ]
 }

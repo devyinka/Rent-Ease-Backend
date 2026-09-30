@@ -65,7 +65,10 @@ export function initializeSocket(httpServer: HttpServer) {
     socket.on("join-property", async (propertyId: string, callback) => {
       // Authorize room membership before subscribing the socket to property events.
       if (typeof propertyId !== "string" || !propertyId) {
-        return callback?.({ success: false, message: "Property ID is required" });
+        return callback?.({
+          success: false,
+          message: "Property ID is required",
+        });
       }
 
       const userId = socket.data.user.userId as string;
@@ -73,11 +76,15 @@ export function initializeSocket(httpServer: HttpServer) {
         userId,
         propertyId,
       );
-      const canAccess = ownsProperty ||
-        await agentService.hasPermission(userId, propertyId, "VIEW_PROPERTY");
+      const canAccess =
+        ownsProperty ||
+        (await agentService.hasPermission(userId, propertyId, "VIEW_PROPERTY"));
 
       if (!canAccess) {
-        return callback?.({ success: false, message: "Property access denied" });
+        return callback?.({
+          success: false,
+          message: "Property access denied",
+        });
       }
 
       socket.join(socketRooms.property(propertyId));

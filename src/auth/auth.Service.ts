@@ -10,6 +10,7 @@ import {
   users,
   landlords,
   agents,
+  technicians,
   landlordAgents,
 } from "../db/schema.js";
 
@@ -270,6 +271,20 @@ export const authService = {
 
         if (!tenant) {
           throw new AppError("Failed to create tenant profile", 500);
+        }
+      }
+
+      // TECHNICIAN PROFILE
+      if (input.role === "TECHNICIAN") {
+        const [technician] = await transaction
+          .insert(technicians)
+          .values({
+            userId: createdUser.id,
+          })
+          .returning();
+
+        if (!technician) {
+          throw new AppError("Failed to create technician profile", 500);
         }
       }
 

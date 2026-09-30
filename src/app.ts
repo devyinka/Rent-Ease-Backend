@@ -20,6 +20,7 @@ import agentRoute from "./routes/agent.route.js";
 import agentInvitationRoute from "./routes/agentInvitation.route.js";
 import agentCompensationRoute from "./routes/agentCompesation.route.js";
 import landlordRoute from "./routes/landlord.route.js";
+import workOrderRoute from "./routes/workOrder.route.js";
 
 const app = express();
 
@@ -123,6 +124,7 @@ app.get("/api/me", (req, res) => {
   });
 });
 
+app.use("/", workOrderRoute);
 app.use("/", propertyRoutes);
 app.use("/", unitRoutes);
 app.use("/", tenantRoutes);

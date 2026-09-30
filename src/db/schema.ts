@@ -125,6 +125,13 @@ export const agentPermissionEnum = pgEnum("agent_permission", [
   "VIEW_REPORTS",
 ]);
 
+export const workOrderStatusEnum = pgEnum("work_order_status", [
+  "OPEN",
+  "IN_PROGRESS",
+  "COMPLETED",
+  "CANCELLED",
+]);
+
 /* =========================================================
    USERS
 ========================================================= */
@@ -235,6 +242,39 @@ export const agents = pgTable(
   },
   (table) => ({
     userUnique: uniqueIndex("agents_user_unique").on(table.userId),
+  }),
+);
+
+/* =========================================================
+   TECHNICIANS
+========================================================= */
+
+export const technicians = pgTable(
+  "technicians",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, {
+        onDelete: "restrict",
+        onUpdate: "cascade",
+      }),
+
+    createdAt: timestamp("created_at", {
+      withTimezone: true,
+    })
+      .defaultNow()
+      .notNull(),
+
+    updatedAt: timestamp("updated_at", {
+      withTimezone: true,
+    })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => ({
+    userUnique: uniqueIndex("technicians_user_unique").on(table.userId),
   }),
 );
 
@@ -894,6 +934,74 @@ export const tenancies = pgTable(
   }),
 );
 
+/* =========================================================
+   WORK ORDERS
+========================================================= */
+
+export const workOrders = pgTable(
+  "work_orders",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+
+    propertyId: uuid("property_id")
+      .notNull()
+      .references(() => properties.id, {
+        onDelete: "restrict",
+        onUpdate: "cascade",
+      }),
+
+    unitId: uuid("unit_id").references(() => units.id, {
+      onDelete: "restrict",
+      onUpdate: "cascade",
+    }),
+
+    technicianId: uuid("technician_id").references(() => technicians.id, {
+      onDelete: "restrict",
+      onUpdate: "cascade",
+    }),
+
+    title: varchar("title", { length: 150 }).notNull(),
+
+    description: text("description"),
+
+    status: workOrderStatusEnum("status").notNull().default("OPEN"),
+
+    assignedAt: timestamp("assigned_at", {
+      withTimezone: true,
+    }),
+
+    completedAt: timestamp("completed_at", {
+      withTimezone: true,
+    }),
+
+    createdAt: timestamp("created_at", {
+      withTimezone: true,
+    })
+      .defaultNow()
+      .notNull(),
+
+    updatedAt: timestamp("updated_at", {
+      withTimezone: true,
+    })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => ({
+    propertyIndex: index("work_orders_property_id_idx").on(table.propertyId),
+
+    technicianIndex: index("work_orders_technician_id_idx").on(
+      table.technicianId,
+    ),
+
+    statusIndex: index("work_orders_status_idx").on(table.status),
+
+    titleNotEmpty: check(
+      "work_orders_title_not_empty",
+      sql`length(trim(${table.title})) > 0`,
+    ),
+  }),
+);
+
 export const authSessions = pgTable(
   "auth_sessions",
   {
@@ -998,6 +1106,7 @@ export const usersRelations = relations(users, ({ one, many }) => ({
   landlord: one(landlords),
   tenant: one(tenants),
   agent: one(agents),
+  technician: one(technicians),
   authSessions: many(authSessions),
 }));
 
@@ -1023,6 +1132,18 @@ export const agentsRelations = relations(agents, ({ one, many }) => ({
 
   landlordAgents: many(landlordAgents),
 }));
+
+export const techniciansRelations = relations(
+  technicians,
+  ({ one, many }) => ({
+    user: one(users, {
+      fields: [technicians.userId],
+      references: [users.id],
+    }),
+
+    workOrders: many(workOrders),
+  }),
+);
 
 export const landlordAgentsRelations = relations(
   landlordAgents,
@@ -1099,6 +1220,8 @@ export const propertiesRelations = relations(properties, ({ one, many }) => ({
   units: many(units),
 
   agentProperties: many(agentProperties),
+
+  workOrders: many(workOrders),
 }));
 
 export const unitsRelations = relations(units, ({ one, many }) => ({
@@ -1108,6 +1231,25 @@ export const unitsRelations = relations(units, ({ one, many }) => ({
   }),
 
   tenancies: many(tenancies),
+
+  workOrders: many(workOrders),
+}));
+
+export const workOrdersRelations = relations(workOrders, ({ one }) => ({
+  property: one(properties, {
+    fields: [workOrders.propertyId],
+    references: [properties.id],
+  }),
+
+  unit: one(units, {
+    fields: [workOrders.unitId],
+    references: [units.id],
+  }),
+
+  technician: one(technicians, {
+    fields: [workOrders.technicianId],
+    references: [technicians.id],
+  }),
 }));
 
 export const tenantsRelations = relations(tenants, ({ one, many }) => ({
@@ -1191,3 +1333,9 @@ export type NewAgentCompensation = typeof agentCompensations.$inferInsert;
 
 export type AgentInvitation = typeof agentInvitations.$inferSelect;
 export type NewAgentInvitation = typeof agentInvitations.$inferInsert;
+
+export type Technician = typeof technicians.$inferSelect;
+export type NewTechnician = typeof technicians.$inferInsert;
+
+export type WorkOrder = typeof workOrders.$inferSelect;
+export type NewWorkOrder = typeof workOrders.$inferInsert;
