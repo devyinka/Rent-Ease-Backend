@@ -132,7 +132,13 @@ export const agentInvitationService = {
       with: {
         landlord: {
           with: {
-            user: true,
+            user: {
+              columns: {
+                id: true,
+                firstName: true,
+                lastName: true,
+              },
+            },
           },
         },
       },
@@ -194,7 +200,13 @@ export const agentInvitationService = {
       with: {
         landlord: {
           with: {
-            user: true,
+            user: {
+              columns: {
+                id: true,
+                firstName: true,
+                lastName: true,
+              },
+            },
           },
         },
       },
@@ -303,6 +315,7 @@ export const agentInvitationService = {
           );
         }
 
+        // Keep the unique relationship row so its assignment and audit history survive reactivation.
         const [reactivatedRelationship] = await transaction
           .update(landlordAgents)
           .set({

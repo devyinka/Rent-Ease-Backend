@@ -2,6 +2,7 @@ import { relations, sql } from "drizzle-orm";
 import {
   check,
   integer,
+  jsonb,
   numeric,
   pgEnum,
   pgTable,
@@ -95,6 +96,11 @@ export const agentCompensationFrequencyEnum = pgEnum(
 );
 
 export const agentRelationshipStatusEnum = pgEnum("agent_relationship_status", [
+  "ACTIVE",
+  "REVOKED",
+]);
+
+export const agentPropertyStatusEnum = pgEnum("agent_property_status", [
   "ACTIVE",
   "REVOKED",
 ]);
@@ -365,6 +371,8 @@ export const agentProperties = pgTable(
         onUpdate: "cascade",
       }),
 
+    status: agentPropertyStatusEnum("status").notNull().default("ACTIVE"),
+
     /*
      * Default agent fee configuration for this
      * agent's assignment to this property.
@@ -391,7 +399,9 @@ export const agentProperties = pgTable(
   (table) => ({
     landlordAgentPropertyUnique: uniqueIndex(
       "agent_properties_landlord_agent_property_unique",
-    ).on(table.landlordAgentId, table.propertyId),
+    )
+      .on(table.landlordAgentId, table.propertyId)
+      .where(sql`${table.status} = 'ACTIVE'`),
 
     landlordAgentIndex: index("agent_properties_landlord_agent_id_idx").on(
       table.landlordAgentId,
@@ -928,12 +938,58 @@ export const authSessions = pgTable(
 );
 
 /* =========================================================
+   AUDIT LOGS
+========================================================= */
+
+export const auditLogs = pgTable(
+  "audit_logs",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+
+    actorUserId: uuid("actor_user_id")
+      .notNull()
+      .references(() => users.id, {
+        onDelete: "restrict",
+        onUpdate: "cascade",
+      }),
+
+    action: varchar("action", { length: 100 }).notNull(),
+    entity: varchar("entity", { length: 100 }).notNull(),
+    entityId: uuid("entity_id"),
+    oldValues: jsonb("old_values"),
+    newValues: jsonb("new_values"),
+    metadata: jsonb("metadata"),
+
+    createdAt: timestamp("created_at", {
+      withTimezone: true,
+    })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => ({
+    actorIndex: index("audit_logs_actor_user_id_idx").on(table.actorUserId),
+    entityIndex: index("audit_logs_entity_idx").on(
+      table.entity,
+      table.entityId,
+    ),
+    createdAtIndex: index("audit_logs_created_at_idx").on(table.createdAt),
+  }),
+);
+
+/* =========================================================
    RELATIONS
 ========================================================= */
 
 export const authSessionsRelations = relations(authSessions, ({ one }) => ({
   user: one(users, {
     fields: [authSessions.userId],
+    references: [users.id],
+  }),
+}));
+
+export const auditLogsRelations = relations(auditLogs, ({ one }) => ({
+  actor: one(users, {
+    fields: [auditLogs.actorUserId],
     references: [users.id],
   }),
 }));
@@ -1110,6 +1166,9 @@ export type NewTenancy = typeof tenancies.$inferInsert;
 export type AuthSession = typeof authSessions.$inferSelect;
 export type NewAuthSession = typeof authSessions.$inferInsert;
 
+export type AuditLog = typeof auditLogs.$inferSelect;
+export type NewAuditLog = typeof auditLogs.$inferInsert;
+
 export type TenantInvitation = typeof tenantInvitations.$inferSelect;
 export type NewTenantInvitation = typeof tenantInvitations.$inferInsert;
 
@@ -1124,12 +1183,10 @@ export type NewAgentProperty = typeof agentProperties.$inferInsert;
 
 export type AgentPropertyPermission =
   typeof agentPropertyPermissions.$inferSelect;
-
 export type NewAgentPropertyPermission =
   typeof agentPropertyPermissions.$inferInsert;
 
 export type AgentCompensation = typeof agentCompensations.$inferSelect;
-
 export type NewAgentCompensation = typeof agentCompensations.$inferInsert;
 
 export type AgentInvitation = typeof agentInvitations.$inferSelect;

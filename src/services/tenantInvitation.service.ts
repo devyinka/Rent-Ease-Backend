@@ -173,6 +173,7 @@ export const tenantInvitationService = {
       throw new AppError("This invitation was not sent to this account", 403);
     }
 
+    // Profile creation and invitation consumption must succeed or fail together.
     const result = await db.transaction(async (transaction) => {
       let tenant = await transaction.query.tenants.findFirst({
         where: eq(tenants.userId, user.id),
@@ -201,6 +202,7 @@ export const tenantInvitationService = {
           updatedAt: new Date(),
         })
         .where(
+          // The status predicate makes invitation acceptance single-use under concurrency.
           and(
             eq(tenantInvitations.id, invitation.id),
             eq(tenantInvitations.status, "PENDING"),

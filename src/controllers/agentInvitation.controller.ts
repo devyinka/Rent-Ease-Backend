@@ -3,11 +3,14 @@ import type { Request, Response } from "express";
 import { agentInvitationService } from "../services/agentInvitation.service.js";
 
 import type { CreateAgentInvitationInput } from "../types/agent.type.js";
+import { agentInvitationSchema } from "../routes/agentInvitation.route.js";
 
 export const agentInvitationController = {
   // CREATE AGENT INVITATION
   createInvitation: async (req: Request, res: Response) => {
-    const input = req.body as CreateAgentInvitationInput;
+    const input = agentInvitationSchema.parse(
+      req.body,
+    ) as CreateAgentInvitationInput;
 
     const result = await agentInvitationService.createInvitation(
       req.user!.id,

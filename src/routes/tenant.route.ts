@@ -13,14 +13,22 @@ router.patch(
   tenantController.updateMyProfile,
 );
 
-router.get("/tenants", requireRole("LANDLORD"), tenantController.getAll);
+router.get(
+  "/tenants",
+  requireRole("LANDLORD", "AGENT"),
+  tenantController.getAll,
+);
 
 router.get(
   "/tenants/:id",
-  requireRole("LANDLORD", "TENANT"),
+  requireRole("LANDLORD", "AGENT", "TENANT"),
   tenantController.getById,
 );
 
-router.patch("/tenants/:id", requireRole("TENANT"), tenantController.update);
+router.patch(
+  "/tenants/:id",
+  requireRole("LANDLORD", "AGENT", "TENANT"),
+  tenantController.update,
+);
 
 export default router;

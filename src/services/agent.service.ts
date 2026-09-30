@@ -2,9 +2,7 @@ import { and, eq, inArray } from "drizzle-orm";
 
 import { db } from "../db/index.js";
 import {
-  agentCompensations,
   agentProperties,
-  agentPropertyPermissions,
   agents,
   landlordAgents,
   users,
@@ -229,7 +227,10 @@ export const agentService = {
 
     // GET ASSIGNED PROPERTIES
     const properties = await db.query.agentProperties.findMany({
-      where: inArray(agentProperties.landlordAgentId, relationshipIds),
+      where: and(
+        inArray(agentProperties.landlordAgentId, relationshipIds),
+        eq(agentProperties.status, "ACTIVE"),
+      ),
       with: {
         property: true,
 
@@ -276,7 +277,10 @@ export const agentService = {
     }
 
     const agentProperty = await db.query.agentProperties.findFirst({
-      where: eq(agentProperties.id, agentPropertyId),
+      where: and(
+        eq(agentProperties.id, agentPropertyId),
+        eq(agentProperties.status, "ACTIVE"),
+      ),
 
       with: {
         property: true,
@@ -348,7 +352,8 @@ export const agentService = {
     const assignment = assignments.find(
       (item) =>
         item.landlordAgent.agentId === agent.id &&
-        item.landlordAgent.status === "ACTIVE",
+        item.landlordAgent.status === "ACTIVE" &&
+        item.status === "ACTIVE",
     );
 
     if (!assignment) {
@@ -404,7 +409,10 @@ export const agentService = {
     }
 
     const assignment = await db.query.agentProperties.findFirst({
-      where: eq(agentProperties.id, agentPropertyId),
+      where: and(
+        eq(agentProperties.id, agentPropertyId),
+        eq(agentProperties.status, "ACTIVE"),
+      ),
       with: {
         landlordAgent: true,
         permissions: true,
@@ -417,7 +425,8 @@ export const agentService = {
 
     if (
       assignment.landlordAgent.agentId !== agent.id ||
-      assignment.landlordAgent.status !== "ACTIVE"
+      assignment.landlordAgent.status !== "ACTIVE" ||
+      assignment.status !== "ACTIVE"
     ) {
       throw new AppError("Agent property not found", 404);
     }
@@ -436,7 +445,10 @@ export const agentService = {
     }
 
     const assignment = await db.query.agentProperties.findFirst({
-      where: eq(agentProperties.id, agentPropertyId),
+      where: and(
+        eq(agentProperties.id, agentPropertyId),
+        eq(agentProperties.status, "ACTIVE"),
+      ),
       with: {
         landlordAgent: true,
         property: true,
@@ -451,7 +463,8 @@ export const agentService = {
 
     if (
       assignment.landlordAgent.agentId !== agent.id ||
-      assignment.landlordAgent.status !== "ACTIVE"
+      assignment.landlordAgent.status !== "ACTIVE" ||
+      assignment.status !== "ACTIVE"
     ) {
       throw new AppError("Agent property not found", 404);
     }

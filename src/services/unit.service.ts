@@ -8,6 +8,24 @@ import type { CreateUnitInput, UpdateUnitInput } from "../types/unit.type.js";
 import { AppError } from "../errors/appError.js";
 
 import { propertyAccessService } from "./property-access.service.js";
+import { agentService } from "./agent.service.js";
+import type { AgentPermission } from "../types/agent.type.js";
+
+async function hasUnitAccess(
+  userId: string,
+  propertyId: string,
+  permission: AgentPermission,
+) {
+  if (await propertyAccessService.userOwnsProperty(userId, propertyId)) {
+    return true;
+  }
+
+  try {
+    return await agentService.hasPermission(userId, propertyId, permission);
+  } catch {
+    return false;
+  }
+}
 
 export const unitService = {
   createUnit: async (
@@ -15,10 +33,7 @@ export const unitService = {
     propertyId: string,
     input: CreateUnitInput,
   ) => {
-    const hasAccess = await propertyAccessService.userOwnsProperty(
-      userId,
-      propertyId,
-    );
+    const hasAccess = await hasUnitAccess(userId, propertyId, "MANAGE_UNITS");
 
     if (!hasAccess) {
       throw new AppError(
@@ -71,10 +86,7 @@ export const unitService = {
   },
 
   getUnits: async (userId: string, propertyId: string) => {
-    const hasAccess = await propertyAccessService.userOwnsProperty(
-      userId,
-      propertyId,
-    );
+    const hasAccess = await hasUnitAccess(userId, propertyId, "VIEW_UNITS");
 
     if (!hasAccess) {
       throw new AppError(
@@ -101,9 +113,10 @@ export const unitService = {
       throw new AppError("Unit not found", 404);
     }
 
-    const hasAccess = await propertyAccessService.userOwnsProperty(
+    const hasAccess = await hasUnitAccess(
       userId,
       result[0].propertyId,
+      "VIEW_UNITS",
     );
 
     if (!hasAccess) {
@@ -132,9 +145,10 @@ export const unitService = {
       throw new AppError("Unit not found", 404);
     }
 
-    const hasAccess = await propertyAccessService.userOwnsProperty(
+    const hasAccess = await hasUnitAccess(
       userId,
       existing[0].propertyId,
+      "MANAGE_UNITS",
     );
 
     if (!hasAccess) {
@@ -239,9 +253,10 @@ export const unitService = {
       throw new AppError("Unit not found", 404);
     }
 
-    const hasAccess = await propertyAccessService.userOwnsProperty(
+    const hasAccess = await hasUnitAccess(
       userId,
       existing[0].propertyId,
+      "MANAGE_UNITS",
     );
 
     if (!hasAccess) {

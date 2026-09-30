@@ -1,6 +1,7 @@
 import type { Request, Response } from "express";
 
 import { agentCompensationService } from "../services/agentCompensation.service.js";
+import { compensationSchema } from "../routes/agentCompesation.route.js";
 
 export const agentCompensationController = {
   // GET AGENT COMPENSATIONS
@@ -25,7 +26,7 @@ export const agentCompensationController = {
     const compensation = await agentCompensationService.createCompensation(
       req.user!.id,
       agentPropertyId as string,
-      req.body,
+      compensationSchema.parse(req.body),
     );
 
     return res.status(201).json({

@@ -18,6 +18,8 @@ export const env = {
 
   jwtAccessSecret: requiredEnv("JWT_ACCESS_SECRET"),
   jwtRefreshSecret: requiredEnv("JWT_REFRESH_SECRET"),
+  jwtIssuer: requiredEnv("JWT_ISSUER"),
+  jwtAudience: requiredEnv("JWT_AUDIENCE"),
 
   jwtAccessExpiresIn: process.env.JWT_ACCESS_EXPIRES_IN || "15m",
 

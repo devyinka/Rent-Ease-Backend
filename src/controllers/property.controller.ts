@@ -1,6 +1,10 @@
 import type { Request, Response } from "express";
 
 import { propertyService } from "../services/property.service.js";
+import {
+  propertyCreateSchema,
+  propertyUpdateSchema,
+} from "../routes/property.route.js";
 
 export const propertyController = {
   create: async (req: Request, res: Response) => {
@@ -13,7 +17,7 @@ export const propertyController = {
 
     const property = await propertyService.createProperty(
       req.user.id,
-      req.body,
+      propertyCreateSchema.parse(req.body),
     );
 
     return res.status(201).json({
@@ -68,7 +72,7 @@ export const propertyController = {
     const property = await propertyService.updateProperty(
       req.user.id,
       req.params.propertyId as string,
-      req.body,
+      propertyUpdateSchema.parse(req.body),
     );
 
     return res.status(200).json({

@@ -1,6 +1,7 @@
 import type { Request, Response } from "express";
 
 import { unitService } from "../services/unit.service.js";
+import { unitCreateSchema, unitUpdateSchema } from "../routes/unit.route.js";
 
 export const unitController = {
   create: async (req: Request, res: Response) => {
@@ -14,7 +15,7 @@ export const unitController = {
     const unit = await unitService.createUnit(
       req.user.id,
       req.params.propertyId as string,
-      req.body,
+      unitCreateSchema.parse(req.body),
     );
 
     return res.status(201).json({
@@ -72,7 +73,7 @@ export const unitController = {
     const unit = await unitService.updateUnit(
       req.user.id,
       req.params.id as string,
-      req.body,
+      unitUpdateSchema.parse(req.body),
     );
 
     return res.status(200).json({

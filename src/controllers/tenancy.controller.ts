@@ -5,12 +5,25 @@ import type {
   CreateTenancyInput,
   UpdateTenancyInput,
 } from "../types/tenancy.type.js";
+import {
+  tenancyCreateSchema,
+  tenancyUpdateSchema,
+} from "../routes/tenancy.route.js";
 
 export const tenancyController = {
+  getMyTenancies: async (req: Request, res: Response) => {
+    const tenancies = await tenancyService.getMyTenancies(req.user!.id);
+
+    res.status(200).json({
+      success: true,
+      data: tenancies,
+    });
+  },
+
   create: async (req: Request, res: Response) => {
     const tenancy = await tenancyService.createTenancy(
       req.user!.id,
-      req.body as CreateTenancyInput,
+      tenancyCreateSchema.parse(req.body) as CreateTenancyInput,
     );
 
     res.status(201).json({
@@ -39,7 +52,7 @@ export const tenancyController = {
     const tenancy = await tenancyService.updateTenancy(
       req.user!.id,
       tenancyId as string,
-      req.body as UpdateTenancyInput,
+      tenancyUpdateSchema.parse(req.body) as UpdateTenancyInput,
     );
 
     res.status(200).json({

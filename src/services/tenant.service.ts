@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 
 import { db } from "../db/index.js";
 import {
@@ -11,13 +11,53 @@ import {
 } from "../db/schema.js";
 import { AppError } from "../errors/appError.js";
 import type { UpdateTenantInput } from "../types/tenant.type.js";
+import { agentService } from "./agent.service.js";
+
+async function hasTenantPermission(
+  userId: string,
+  tenantId: string,
+  permission: "VIEW_TENANTS" | "MANAGE_TENANTS",
+) {
+  const propertiesForTenant = await db
+    .select({ propertyId: properties.id })
+    .from(tenancies)
+    .innerJoin(units, eq(tenancies.unitId, units.id))
+    .innerJoin(properties, eq(units.propertyId, properties.id))
+    .where(eq(tenancies.tenantId, tenantId));
+
+  for (const property of propertiesForTenant) {
+    try {
+      if (
+        await agentService.hasPermission(
+          userId,
+          property.propertyId,
+          permission,
+        )
+      ) {
+        return true;
+      }
+    } catch {
+      return false;
+    }
+  }
+
+  return false;
+}
 
 export const tenantService = {
   getMyTenant: async (userId: string) => {
     const result = await db
       .select({
         tenant: tenants,
-        user: users,
+        user: {
+          id: users.id,
+          firstName: users.firstName,
+          lastName: users.lastName,
+          email: users.email,
+          phone: users.phone,
+          role: users.role,
+          status: users.status,
+        },
       })
       .from(tenants)
       .innerJoin(users, eq(tenants.userId, users.id))
@@ -38,21 +78,34 @@ export const tenantService = {
       where: eq(landlords.userId, userId),
     });
 
-    if (!landlord) {
-      throw new AppError("Landlord profile not found", 404);
-    }
-
     const result = await db
       .selectDistinct({
         tenant: tenants,
-        user: users,
+        user: {
+          id: users.id,
+          firstName: users.firstName,
+          lastName: users.lastName,
+          email: users.email,
+          phone: users.phone,
+          role: users.role,
+          status: users.status,
+        },
       })
       .from(tenants)
       .innerJoin(users, eq(tenants.userId, users.id))
       .innerJoin(tenancies, eq(tenancies.tenantId, tenants.id))
       .innerJoin(units, eq(tenancies.unitId, units.id))
       .innerJoin(properties, eq(units.propertyId, properties.id))
-      .where(eq(properties.landlordId, landlord.id));
+      .where(
+        landlord
+          ? eq(properties.landlordId, landlord.id)
+          : inArray(
+              properties.id,
+              (await agentService.getMyProperties(userId)).map(
+                (item) => item.property.id,
+              ),
+            ),
+      );
 
     return result;
   },
@@ -61,7 +114,15 @@ export const tenantService = {
     const tenantResult = await db
       .select({
         tenant: tenants,
-        user: users,
+        user: {
+          id: users.id,
+          firstName: users.firstName,
+          lastName: users.lastName,
+          email: users.email,
+          phone: users.phone,
+          role: users.role,
+          status: users.status,
+        },
       })
       .from(tenants)
       .innerJoin(users, eq(tenants.userId, users.id))
@@ -82,24 +143,26 @@ export const tenantService = {
       where: eq(landlords.userId, userId),
     });
 
-    if (!landlord) {
-      throw new AppError("You do not have access to this tenant", 403);
-    }
+    const access = landlord
+      ? await db
+          .select({ tenantId: tenants.id })
+          .from(tenants)
+          .innerJoin(tenancies, eq(tenancies.tenantId, tenants.id))
+          .innerJoin(units, eq(tenancies.unitId, units.id))
+          .innerJoin(properties, eq(units.propertyId, properties.id))
+          .where(
+            and(
+              eq(tenants.id, tenantId),
+              eq(properties.landlordId, landlord.id),
+            ),
+          )
+          .limit(1)
+      : [];
 
-    const access = await db
-      .select({
-        tenantId: tenants.id,
-      })
-      .from(tenants)
-      .innerJoin(tenancies, eq(tenancies.tenantId, tenants.id))
-      .innerJoin(units, eq(tenancies.unitId, units.id))
-      .innerJoin(properties, eq(units.propertyId, properties.id))
-      .where(
-        and(eq(tenants.id, tenantId), eq(properties.landlordId, landlord.id)),
-      )
-      .limit(1);
-
-    if (access.length === 0) {
+    if (
+      access.length === 0 &&
+      !(await hasTenantPermission(userId, tenantId, "VIEW_TENANTS"))
+    ) {
       throw new AppError("You do not have access to this tenant", 403);
     }
 
@@ -119,7 +182,10 @@ export const tenantService = {
       throw new AppError("Tenant not found", 404);
     }
 
-    if (tenant.userId !== userId) {
+    if (
+      tenant.userId !== userId &&
+      !(await hasTenantPermission(userId, tenantId, "MANAGE_TENANTS"))
+    ) {
       throw new AppError(
         "You do not have permission to update this tenant",
         403,
@@ -181,7 +247,15 @@ export const tenantService = {
 
     return {
       tenant,
-      user: updatedUser,
+      user: {
+        id: updatedUser.id,
+        firstName: updatedUser.firstName,
+        lastName: updatedUser.lastName,
+        email: updatedUser.email,
+        phone: updatedUser.phone,
+        role: updatedUser.role,
+        status: updatedUser.status,
+      },
     };
   },
 };

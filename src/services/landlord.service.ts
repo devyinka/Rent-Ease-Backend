@@ -2,7 +2,6 @@ import { and, eq } from "drizzle-orm";
 
 import { db } from "../db/index.js";
 import {
-  agentCompensations,
   agentProperties,
   agentPropertyPermissions,
   landlordAgents,
@@ -11,6 +10,7 @@ import {
 } from "../db/schema.js";
 
 import { AppError } from "../errors/appError.js";
+import { auditService } from "./audit.service.js";
 
 import type {
   AgentPermission,
@@ -18,6 +18,135 @@ import type {
 } from "../types/agent.type.js";
 
 export const landlordService = {
+  // Return only agent information a landlord needs to manage relationships.
+  getAgents: async (userId: string) => {
+    const landlord = await db.query.landlords.findFirst({
+      where: eq(landlords.userId, userId),
+    });
+
+    if (!landlord) {
+      throw new AppError("Landlord profile not found", 404);
+    }
+
+    const relationships = await db.query.landlordAgents.findMany({
+      where: eq(landlordAgents.landlordId, landlord.id),
+      with: {
+        agent: {
+          with: {
+            user: {
+              columns: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                email: true,
+                phone: true,
+                role: true,
+                status: true,
+              },
+            },
+          },
+        },
+        properties: {
+          with: {
+            property: {
+              columns: {
+                id: true,
+                name: true,
+                city: true,
+                state: true,
+              },
+            },
+          },
+        },
+      },
+      orderBy: (table, { desc }) => desc(table.createdAt),
+    });
+
+    return relationships.map((relationship) => ({
+      relationshipId: relationship.id,
+      agentId: relationship.agent.id,
+      status: relationship.status,
+      acceptedAt: relationship.acceptedAt,
+      revokedAt: relationship.revokedAt,
+      createdAt: relationship.createdAt,
+      updatedAt: relationship.updatedAt,
+      agent: relationship.agent.user,
+      properties: relationship.properties.map((assignment) => ({
+        agentPropertyId: assignment.id,
+        status: assignment.status,
+        property: assignment.property,
+      })),
+    }));
+  },
+
+  getAgent: async (userId: string, agentId: string) => {
+    const landlord = await db.query.landlords.findFirst({
+      where: eq(landlords.userId, userId),
+    });
+
+    if (!landlord) {
+      throw new AppError("Landlord profile not found", 404);
+    }
+
+    const relationship = await db.query.landlordAgents.findFirst({
+      where: and(
+        eq(landlordAgents.landlordId, landlord.id),
+        eq(landlordAgents.agentId, agentId),
+      ),
+      with: {
+        agent: {
+          with: {
+            user: {
+              columns: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                email: true,
+                phone: true,
+                role: true,
+                status: true,
+              },
+            },
+          },
+        },
+        properties: {
+          with: {
+            property: {
+              columns: {
+                id: true,
+                name: true,
+                city: true,
+                state: true,
+              },
+            },
+            permissions: true,
+          },
+        },
+      },
+    });
+
+    if (!relationship) {
+      throw new AppError("Agent relationship not found", 404);
+    }
+
+    return {
+      relationshipId: relationship.id,
+      agentId: relationship.agent.id,
+      status: relationship.status,
+      acceptedAt: relationship.acceptedAt,
+      revokedAt: relationship.revokedAt,
+      createdAt: relationship.createdAt,
+      updatedAt: relationship.updatedAt,
+      agent: relationship.agent.user,
+      properties: relationship.properties.map((assignment) => ({
+        agentPropertyId: assignment.id,
+        status: assignment.status,
+        property: assignment.property,
+        permissions: assignment.permissions,
+      })),
+    };
+  },
+
   // ASSIGN PROPERTY TO AGENT
   assignProperty: async (userId: string, input: AssignPropertyInput) => {
     // FIND LANDLORD
@@ -56,11 +185,12 @@ export const landlordService = {
 
     // CHECK EXISTING ASSIGNMENT
 
-    // i will update this later to check either it has been assigned for another agent too
+    // I will update this later to check either it has been assigned for another agent too
     const existing = await db.query.agentProperties.findFirst({
       where: and(
         eq(agentProperties.landlordAgentId, input.landlordAgentId),
         eq(agentProperties.propertyId, input.propertyId),
+        eq(agentProperties.status, "ACTIVE"),
       ),
     });
 
@@ -83,6 +213,14 @@ export const landlordService = {
     if (!assignment) {
       throw new AppError("Failed to assign property to agent", 500);
     }
+
+    await auditService.record({
+      actorUserId: userId,
+      action: "ASSIGN_PROPERTY",
+      entity: "AGENT_PROPERTY",
+      entityId: assignment.id,
+      newValues: assignment,
+    });
 
     return assignment;
   },
@@ -150,27 +288,27 @@ export const landlordService = {
       throw new AppError("Agent property assignment not found", 404);
     }
 
-    // REMOVE ASSIGNMENT AND DEPENDENT RECORDS
-    await db.transaction(async (tx) => {
-      // REMOVE PERMISSIONS
-      await tx
-        .delete(agentPropertyPermissions)
-        .where(eq(agentPropertyPermissions.agentPropertyId, agentPropertyId));
+    // Revoke the assignment while preserving permissions and compensation history.
+    await db
+      .update(agentProperties)
+      .set({
+        status: "REVOKED",
+        updatedAt: new Date(),
+      })
+      .where(eq(agentProperties.id, agentPropertyId));
 
-      // REMOVE COMPENSATION RECORDS
-      await tx
-        .delete(agentCompensations)
-        .where(eq(agentCompensations.agentPropertyId, agentPropertyId));
-
-      // REMOVE PROPERTY ASSIGNMENT
-      await tx
-        .delete(agentProperties)
-        .where(eq(agentProperties.id, agentPropertyId));
+    await auditService.record({
+      actorUserId: userId,
+      action: "REVOKE_PROPERTY_ASSIGNMENT",
+      entity: "AGENT_PROPERTY",
+      entityId: agentPropertyId,
+      oldValues: assignment,
+      newValues: { ...assignment, status: "REVOKED" },
     });
 
     return {
       id: agentPropertyId,
-      removed: true,
+      revoked: true,
     };
   },
 
@@ -236,6 +374,14 @@ export const landlordService = {
       }
     });
 
+    await auditService.record({
+      actorUserId: userId,
+      action: "SET_AGENT_PERMISSIONS",
+      entity: "AGENT_PROPERTY",
+      entityId: agentPropertyId,
+      newValues: { permissions: uniquePermissions },
+    });
+
     return db.query.agentPropertyPermissions.findMany({
       where: eq(agentPropertyPermissions.agentPropertyId, agentPropertyId),
     });
@@ -272,6 +418,14 @@ export const landlordService = {
       throw new AppError("Failed to grant permission", 500);
     }
 
+    await auditService.record({
+      actorUserId: userId,
+      action: "GRANT_AGENT_PERMISSION",
+      entity: "AGENT_PROPERTY_PERMISSION",
+      entityId: created.id,
+      newValues: created,
+    });
+
     return created;
   },
 
@@ -297,6 +451,14 @@ export const landlordService = {
     await db
       .delete(agentPropertyPermissions)
       .where(eq(agentPropertyPermissions.id, existing.id));
+
+    await auditService.record({
+      actorUserId: userId,
+      action: "REVOKE_AGENT_PERMISSION",
+      entity: "AGENT_PROPERTY_PERMISSION",
+      entityId: existing.id,
+      oldValues: existing,
+    });
 
     return {
       permission,

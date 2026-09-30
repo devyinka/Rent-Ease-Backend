@@ -55,7 +55,14 @@ export const agentCompensationService = {
     agentPropertyId: string,
     input: CreateAgentCompensationInput,
   ) => {
-    await agentCompensationService.getAgentProperty(userId, agentPropertyId);
+    const assignment = await agentCompensationService.getAgentProperty(
+      userId,
+      agentPropertyId,
+    );
+
+    if (assignment.status !== "ACTIVE") {
+      throw new AppError("Agent property assignment is revoked", 409);
+    }
 
     const value = Number(input.value);
 
@@ -136,6 +143,7 @@ export const agentCompensationService = {
       );
     }
 
+    // End-date the effective-dated row instead of replacing it so compensation history remains auditable.
     const [updated] = await db
       .update(agentCompensations)
       .set({

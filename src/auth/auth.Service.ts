@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, gt } from "drizzle-orm";
 
 import { db } from "../db/index.js";
 
@@ -411,6 +411,7 @@ export const authService = {
     }
 
     if (hashToken(refreshToken) !== session.refreshTokenHash) {
+      // A mismatched refresh hash indicates token reuse, so revoke the session to contain replay.
       await db
         .update(authSessions)
         .set({
@@ -441,13 +442,26 @@ export const authService = {
       role: user.role,
     });
 
-    await db
+    const [rotatedSession] = await db
       .update(authSessions)
       .set({
         refreshTokenHash: hashToken(newRefreshToken),
         lastUsedAt: new Date(),
       })
-      .where(eq(authSessions.id, session.id));
+      // The old hash makes refresh-token rotation a one-winner operation.
+      .where(
+        and(
+          eq(authSessions.id, session.id),
+          eq(authSessions.refreshTokenHash, session.refreshTokenHash),
+          eq(authSessions.status, "ACTIVE"),
+          gt(authSessions.expiresAt, new Date()),
+        ),
+      )
+      .returning({ id: authSessions.id });
+
+    if (!rotatedSession) {
+      throw new AppError("Refresh token has already been used", 401);
+    }
 
     return {
       accessToken: newAccessToken,

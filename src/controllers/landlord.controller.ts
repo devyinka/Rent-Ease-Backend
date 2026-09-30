@@ -1,14 +1,43 @@
 import type { Request, Response } from "express";
 
 import { landlordService } from "../services/landlord.service";
-import { AgentPermission } from "../types/agent.type";
+import {
+  assignPropertySchema,
+  agentIdParamSchema,
+  permissionListSchema,
+  permissionParamSchema,
+  permissionSchema,
+} from "../routes/landlord.route.js";
 
 export const landlordController = {
+  // GET ALL AGENTS CONNECTED TO THE LANDLORD
+  getAgents: async (req: Request, res: Response) => {
+    const agents = await landlordService.getAgents(req.user!.id);
+
+    return res.status(200).json({
+      success: true,
+      data: agents,
+    });
+  },
+
+  // GET ONE AGENT CONNECTED TO THE LANDLORD
+  getAgent: async (req: Request, res: Response) => {
+    const agent = await landlordService.getAgent(
+      req.user!.id,
+      agentIdParamSchema.parse(req.params.agentId),
+    );
+
+    return res.status(200).json({
+      success: true,
+      data: agent,
+    });
+  },
+
   // ASSIGN PROPERTY TO AGENT
   assignProperty: async (req: Request, res: Response) => {
     const assignment = await landlordService.assignProperty(
       req.user!.id,
-      req.body,
+      assignPropertySchema.parse(req.body),
     );
 
     return res.status(201).json({
@@ -68,7 +97,7 @@ export const landlordController = {
     const permissions = await landlordService.setPermissions(
       req.user!.id,
       agentPropertyId as string,
-      req.body,
+      permissionListSchema.parse(req.body),
     );
 
     return res.status(200).json({
@@ -84,7 +113,7 @@ export const landlordController = {
     const permission = await landlordService.grantPermission(
       req.user!.id,
       agentPropertyId as string,
-      req.body,
+      permissionSchema.parse(req.body),
     );
 
     return res.status(201).json({
@@ -100,7 +129,7 @@ export const landlordController = {
     const result = await landlordService.revokePermission(
       req.user!.id,
       agentPropertyId as string,
-      permission as AgentPermission,
+      permissionParamSchema.parse(permission),
     );
 
     return res.status(200).json({

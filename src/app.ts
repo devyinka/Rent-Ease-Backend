@@ -109,6 +109,7 @@ app.get("/health", (_req, res) => {
 
 app.use("/", authRoutes);
 
+// Authentication endpoints stay public; routes registered after this middleware require an active session.
 app.use(requireAuth);
 
 app.get("/api/me", (req, res) => {

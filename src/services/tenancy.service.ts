@@ -1,9 +1,10 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, or, sql } from "drizzle-orm";
 
 import { db } from "../db/index.js";
 import {
   landlords,
   properties,
+  tenantInvitations,
   tenants,
   tenancies,
   units,
@@ -14,6 +15,8 @@ import type {
   CreateTenancyInput,
   UpdateTenancyInput,
 } from "../types/tenancy.type.js";
+import { auditService } from "./audit.service.js";
+import { agentService } from "./agent.service.js";
 
 const allowedRentFrequencies = [
   "MONTHLY",
@@ -37,7 +40,64 @@ const parseDate = (value: string, fieldName: string) => {
   return date;
 };
 
+async function hasTenancyPermission(
+  userId: string,
+  tenancyId: string,
+  permission: "VIEW_TENANTS" | "MANAGE_TENANTS",
+) {
+  const result = await db
+    .select({
+      landlordUserId: landlords.userId,
+      propertyId: properties.id,
+    })
+    .from(tenancies)
+    .innerJoin(units, eq(tenancies.unitId, units.id))
+    .innerJoin(properties, eq(units.propertyId, properties.id))
+    .innerJoin(landlords, eq(properties.landlordId, landlords.id))
+    .where(eq(tenancies.id, tenancyId))
+    .limit(1);
+
+  const tenancy = result[0];
+
+  if (!tenancy) {
+    return false;
+  }
+
+  if (tenancy.landlordUserId === userId) {
+    return true;
+  }
+
+  try {
+    return await agentService.hasPermission(
+      userId,
+      tenancy.propertyId,
+      permission,
+    );
+  } catch {
+    return false;
+  }
+}
+
 export const tenancyService = {
+  getMyTenancies: async (userId: string) => {
+    const result = await db
+      .select({
+        tenancy: tenancies,
+        tenant: tenants,
+        unit: units,
+        property: properties,
+        landlord: landlords,
+      })
+      .from(tenancies)
+      .innerJoin(tenants, eq(tenancies.tenantId, tenants.id))
+      .innerJoin(units, eq(tenancies.unitId, units.id))
+      .innerJoin(properties, eq(units.propertyId, properties.id))
+      .innerJoin(landlords, eq(properties.landlordId, landlords.id))
+      .where(eq(tenants.userId, userId));
+
+    return result;
+  },
+
   createTenancy: async (userId: string, input: CreateTenancyInput) => {
     const landlord = await db.query.landlords.findFirst({
       where: eq(landlords.userId, userId),
@@ -65,6 +125,28 @@ export const tenancyService = {
 
     if (tenant.user.role !== "TENANT") {
       throw new AppError("Selected user is not a tenant", 400);
+    }
+
+    const acceptedInvitation = await db.query.tenantInvitations.findFirst({
+      where: and(
+        eq(tenantInvitations.landlordId, landlord.id),
+        eq(tenantInvitations.status, "ACCEPTED"),
+        or(
+          tenant.user.email
+            ? eq(tenantInvitations.email, tenant.user.email)
+            : undefined,
+          tenant.user.phone
+            ? eq(tenantInvitations.phone, tenant.user.phone)
+            : undefined,
+        ),
+      ),
+    });
+
+    if (!acceptedInvitation) {
+      throw new AppError(
+        "This tenant has not accepted an invitation from you",
+        403,
+      );
     }
 
     const unitResult = await db
@@ -168,6 +250,14 @@ export const tenancyService = {
       throw new AppError("Failed to create tenancy", 500);
     }
 
+    await auditService.record({
+      actorUserId: userId,
+      action: "CREATE",
+      entity: "TENANCY",
+      entityId: tenancy.id,
+      newValues: tenancy,
+    });
+
     return tenancy;
   },
 
@@ -176,7 +266,15 @@ export const tenancyService = {
       .select({
         tenancy: tenancies,
         tenant: tenants,
-        tenantUser: users,
+        tenantUser: {
+          id: users.id,
+          firstName: users.firstName,
+          lastName: users.lastName,
+          email: users.email,
+          phone: users.phone,
+          role: users.role,
+          status: users.status,
+        },
         unit: units,
         property: properties,
         landlord: landlords,
@@ -199,8 +297,13 @@ export const tenancyService = {
     const isLandlord = resultItem.landlord.userId === userId;
 
     const isTenant = resultItem.tenant.userId === userId;
+    const isAgent = await hasTenancyPermission(
+      userId,
+      tenancyId,
+      "VIEW_TENANTS",
+    );
 
-    if (!isLandlord && !isTenant) {
+    if (!isLandlord && !isTenant && !isAgent) {
       throw new AppError("You do not have access to this tenancy", 403);
     }
 
@@ -212,14 +315,6 @@ export const tenancyService = {
     tenancyId: string,
     input: UpdateTenancyInput,
   ) => {
-    const landlord = await db.query.landlords.findFirst({
-      where: eq(landlords.userId, userId),
-    });
-
-    if (!landlord) {
-      throw new AppError("Landlord profile not found", 404);
-    }
-
     const existingResult = await db
       .select({
         tenancy: tenancies,
@@ -229,12 +324,7 @@ export const tenancyService = {
       .from(tenancies)
       .innerJoin(units, eq(tenancies.unitId, units.id))
       .innerJoin(properties, eq(units.propertyId, properties.id))
-      .where(
-        and(
-          eq(tenancies.id, tenancyId),
-          eq(properties.landlordId, landlord.id),
-        ),
-      )
+      .where(eq(tenancies.id, tenancyId))
       .limit(1);
 
     const existing = existingResult[0];
@@ -243,6 +333,13 @@ export const tenancyService = {
       throw new AppError(
         "Tenancy not found or you do not have access to it",
         404,
+      );
+    }
+
+    if (!(await hasTenancyPermission(userId, tenancyId, "MANAGE_TENANTS"))) {
+      throw new AppError(
+        "You do not have permission to manage this tenancy",
+        403,
       );
     }
 
@@ -323,25 +420,41 @@ export const tenancyService = {
         ...values,
         updatedAt: new Date(),
       })
-      .where(eq(tenancies.id, tenancyId))
+      // Keep ownership in the write predicate, not only in the earlier read.
+      .where(
+        and(
+          eq(tenancies.id, tenancyId),
+          sql`EXISTS (
+            SELECT 1
+            FROM ${units}
+            INNER JOIN ${properties}
+              ON ${units.propertyId} = ${properties.id}
+            INNER JOIN ${landlords}
+              ON ${properties.landlordId} = ${landlords.id}
+            WHERE ${units.id} = ${tenancies.unitId}
+              AND ${landlords.userId} = ${userId}
+          )`,
+        ),
+      )
       .returning();
 
     if (!updatedTenancy) {
       throw new AppError("Failed to update tenancy", 500);
     }
 
+    await auditService.record({
+      actorUserId: userId,
+      action: "UPDATE",
+      entity: "TENANCY",
+      entityId: updatedTenancy.id,
+      oldValues: existing.tenancy,
+      newValues: updatedTenancy,
+    });
+
     return updatedTenancy;
   },
 
   activateTenancy: async (userId: string, tenancyId: string) => {
-    const landlord = await db.query.landlords.findFirst({
-      where: eq(landlords.userId, userId),
-    });
-
-    if (!landlord) {
-      throw new AppError("Landlord profile not found", 404);
-    }
-
     const existingResult = await db
       .select({
         tenancy: tenancies,
@@ -351,12 +464,7 @@ export const tenancyService = {
       .from(tenancies)
       .innerJoin(units, eq(tenancies.unitId, units.id))
       .innerJoin(properties, eq(units.propertyId, properties.id))
-      .where(
-        and(
-          eq(tenancies.id, tenancyId),
-          eq(properties.landlordId, landlord.id),
-        ),
-      )
+      .where(eq(tenancies.id, tenancyId))
       .limit(1);
 
     const existing = existingResult[0];
@@ -365,6 +473,13 @@ export const tenancyService = {
       throw new AppError(
         "Tenancy not found or you do not have access to it",
         404,
+      );
+    }
+
+    if (!(await hasTenancyPermission(userId, tenancyId, "MANAGE_TENANTS"))) {
+      throw new AppError(
+        "You do not have permission to manage this tenancy",
+        403,
       );
     }
 
@@ -389,12 +504,36 @@ export const tenancyService = {
         status: "ACTIVE",
         updatedAt: new Date(),
       })
-      .where(eq(tenancies.id, tenancyId))
+      .where(
+        and(
+          eq(tenancies.id, tenancyId),
+          eq(tenancies.status, "PENDING"),
+          sql`EXISTS (
+            SELECT 1
+            FROM ${units}
+            INNER JOIN ${properties}
+              ON ${units.propertyId} = ${properties.id}
+            INNER JOIN ${landlords}
+              ON ${properties.landlordId} = ${landlords.id}
+            WHERE ${units.id} = ${tenancies.unitId}
+              AND ${landlords.userId} = ${userId}
+          )`,
+        ),
+      )
       .returning();
 
     if (!updatedTenancy) {
       throw new AppError("Failed to activate tenancy", 500);
     }
+
+    await auditService.record({
+      actorUserId: userId,
+      action: "ACTIVATE",
+      entity: "TENANCY",
+      entityId: updatedTenancy.id,
+      oldValues: existing.tenancy,
+      newValues: updatedTenancy,
+    });
 
     return updatedTenancy;
   },

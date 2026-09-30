@@ -3,10 +3,30 @@ import { and, eq } from "drizzle-orm";
 import { db } from "../db/index.js";
 import { properties, landlords } from "../db/schema.js";
 import { AppError } from "../errors/appError.js";
+import { auditService } from "./audit.service.js";
+import { agentService } from "./agent.service.js";
+import { propertyAccessService } from "./property-access.service.js";
+import type { AgentPermission } from "../types/agent.type.js";
 import {
   CreatePropertyInput,
   UpdatePropertyInput,
 } from "../types/property.type.js";
+
+async function hasPropertyAccess(
+  userId: string,
+  propertyId: string,
+  permission: AgentPermission,
+) {
+  if (await propertyAccessService.userOwnsProperty(userId, propertyId)) {
+    return true;
+  }
+
+  try {
+    return await agentService.hasPermission(userId, propertyId, permission);
+  } catch {
+    return false;
+  }
+}
 
 export const propertyService = {
   createProperty: async (userId: string, input: CreatePropertyInput) => {
@@ -60,6 +80,14 @@ export const propertyService = {
       throw new AppError("Failed to create property", 500);
     }
 
+    await auditService.record({
+      actorUserId: userId,
+      action: "CREATE",
+      entity: "PROPERTY",
+      entityId: property.id,
+      newValues: property,
+    });
+
     return property;
   },
 
@@ -79,14 +107,17 @@ export const propertyService = {
   },
 
   getPropertyById: async (userId: string, propertyId: string) => {
-    const result = await db
-      .select()
-      .from(properties)
-      .innerJoin(landlords, eq(properties.landlordId, landlords.id))
-      .where(and(eq(properties.id, propertyId), eq(landlords.userId, userId)))
-      .limit(1);
+    const hasAccess = await hasPropertyAccess(
+      userId,
+      propertyId,
+      "VIEW_PROPERTY",
+    );
 
-    const property = result[0]?.properties;
+    const property = hasAccess
+      ? await db.query.properties.findFirst({
+          where: eq(properties.id, propertyId),
+        })
+      : undefined;
 
     if (!property) {
       throw new AppError("Property not found", 404);
@@ -99,23 +130,16 @@ export const propertyService = {
     propertyId: string,
     input: UpdatePropertyInput,
   ) => {
-    const landlord = await db.query.landlords.findFirst({
-      where: eq(landlords.userId, userId),
-    });
-
-    if (!landlord) {
-      throw new AppError("Landlord profile not found", 404);
-    }
-
     const existing = await db.query.properties.findFirst({
-      where: and(
-        eq(properties.id, propertyId),
-        eq(properties.landlordId, landlord.id),
-      ),
+      where: eq(properties.id, propertyId),
     });
 
     if (!existing) {
       throw new AppError("Property not found", 404);
+    }
+
+    if (!(await hasPropertyAccess(userId, propertyId, "MANAGE_PROPERTY"))) {
+      throw new AppError("You do not have access to this property", 403);
     }
 
     const values: UpdatePropertyInput = {};
@@ -188,60 +212,52 @@ export const propertyService = {
         ...values,
         updatedAt: new Date(),
       })
-      .where(
-        and(
-          eq(properties.id, propertyId),
-          eq(properties.landlordId, landlord.id),
-        ),
-      )
+      .where(eq(properties.id, propertyId))
       .returning();
 
     if (!updatedProperty) {
       throw new AppError("Failed to update property", 500);
     }
 
+    await auditService.record({
+      actorUserId: userId,
+      action: "UPDATE",
+      entity: "PROPERTY",
+      entityId: updatedProperty.id,
+      oldValues: existing,
+      newValues: updatedProperty,
+    });
+
     return updatedProperty;
   },
 
   deleteProperty: async (userId: string, propertyId: string) => {
-    const landlord = await db
-      .select({
-        id: landlords.id,
-      })
-      .from(landlords)
-      .where(eq(landlords.userId, userId))
-      .limit(1);
+    const existingProperty = await db.query.properties.findFirst({
+      where: eq(properties.id, propertyId),
+    });
 
-    if (landlord.length === 0) {
-      throw new AppError("Landlord profile not found", 404);
+    if (!existingProperty) {
+      throw new AppError("Property not found", 404);
     }
 
-    const existingProperty = await db
-      .select({
-        id: properties.id,
-      })
-      .from(properties)
-      .where(
-        and(
-          eq(properties.id, propertyId),
-          eq(properties.landlordId, landlord[0].id),
-        ),
-      )
-      .limit(1);
-
-    if (existingProperty.length === 0) {
-      throw new AppError("Property not found", 404);
+    if (!(await hasPropertyAccess(userId, propertyId, "MANAGE_PROPERTY"))) {
+      throw new AppError("You do not have access to this property", 403);
     }
 
     const [deletedProperty] = await db
       .delete(properties)
-      .where(
-        and(
-          eq(properties.id, propertyId),
-          eq(properties.landlordId, landlord[0].id),
-        ),
-      )
+      .where(eq(properties.id, propertyId))
       .returning();
+
+    if (deletedProperty) {
+      await auditService.record({
+        actorUserId: userId,
+        action: "DELETE",
+        entity: "PROPERTY",
+        entityId: deletedProperty.id,
+        oldValues: deletedProperty,
+      });
+    }
 
     return deletedProperty;
   },

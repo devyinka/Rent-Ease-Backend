@@ -1,8 +1,11 @@
 import type { NextFunction, Request, Response } from "express";
+import { and, eq, gt } from "drizzle-orm";
 
 import { verifyAccessToken } from "./Jwt.js";
 
 import type { AuthenticatedUser, UserRole } from "./auth.type.js";
+import { db } from "../db/index.js";
+import { authSessions, users } from "../db/schema.js";
 
 declare global {
   namespace Express {
@@ -12,7 +15,11 @@ declare global {
   }
 }
 
-export function requireAuth(req: Request, res: Response, next: NextFunction) {
+export async function requireAuth(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) {
   const authorization = req.headers.authorization;
 
   if (!authorization?.startsWith("Bearer ")) {
@@ -27,10 +34,48 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
   try {
     const payload = verifyAccessToken(token);
 
+    // The JWT identifies the session; the database check enforces revocation, expiry, and current account status.
+    const account = await db
+      .select({
+        userId: users.id,
+        role: users.role,
+        userStatus: users.status,
+        sessionStatus: authSessions.status,
+      })
+      .from(users)
+      .innerJoin(authSessions, eq(authSessions.userId, users.id))
+      .where(
+        and(
+          eq(users.id, payload.sub),
+          eq(authSessions.id, payload.sid),
+          gt(authSessions.expiresAt, new Date()),
+        ),
+      )
+      .limit(1);
+
+    const authenticatedAccount = account[0];
+
+    if (!authenticatedAccount) {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid or expired access token",
+      });
+    }
+
+    if (
+      authenticatedAccount.userStatus !== "ACTIVE" ||
+      authenticatedAccount.sessionStatus !== "ACTIVE"
+    ) {
+      return res.status(401).json({
+        success: false,
+        message: "User account or session is not active",
+      });
+    }
+
     req.user = {
-      id: payload.sub,
+      id: authenticatedAccount.userId,
       sessionId: payload.sid,
-      role: payload.role,
+      role: authenticatedAccount.role,
     };
 
     next();
